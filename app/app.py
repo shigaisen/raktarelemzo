@@ -3,11 +3,11 @@ import pandas as pd
 import io
 
 # --- Oldal beállítása ---
-st.set_page_config(page_title="Raktárkészlet Elemző", page_icon="📦")
+st.set_page_config(page_title="Svájci automata napi készlet feldolgozó", page_icon="📦")
 
-st.title("📦 Raktárkészlet Elemző")
+st.title("📦 Svájci automata napi készlet feldolgozó")
 st.write("""
-Töltsd fel az Excel fájlt (.xlsx vagy .xls), és a rendszer kiszámolja a 'tölteni' mennyiséget,
+Töltsd fel az Excel fájlt (.xlsx vagy .xls), és a rendszer kiszámolja a 'tölteni' szükséges mennyiséget,
 majd konszolidálja az adatokat.
 """)
 
@@ -92,9 +92,9 @@ if uploaded_file is not None:
         buffer.seek(0)
         
         st.download_button(
-            label="📥 Eredmény letöltése (output.xlsx)",
+            label="📥 Letöltés (napi_keszlet.xlsx)",
             data=buffer,
-            file_name="output.xlsx",
+            file_name="napi_keszlet.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
 
