@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import io
-import os # ÚJ: Az elérési út kezeléséhez
+import os
 # import urllib.request  <- Ez már kikerült
 
 # --- PDF generáláshoz szükséges importok ---
@@ -22,9 +22,8 @@ Töltsd fel az Excel fájlt, és a rendszer kiszámolja a 'tölteni' szükséges
 Letöltheted Excelben vagy PDF-ben (nyomtatáshoz).
 """)
 
-# --- FÜGGVÉNY: Betűtípus kezelése (Elérési út JAVÍTVA) ---
+# --- FÜGGVÉNY: Betűtípus kezelése (Csak regisztráció) ---
 def setup_fonts():
-    # Meghatározza az elérési utat: app.py mappa + fájlnév
     font_filename = os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf")
     
     if not os.path.exists(font_filename):
@@ -90,6 +89,7 @@ if uploaded_file is not None:
         df_final = df_vegeredmeny[final_oszlopok].copy()
         df_final['Kiírni'] = "" 
         
+        # NaN értékek kitöltése üres stringgel a PDF hiba elkerülése végett
         df_final = df_final.fillna('')
 
         st.success(f"✅ Siker! {len(df_final)} tétel feldolgozva.")
@@ -153,8 +153,22 @@ if uploaded_file is not None:
                 )
                 elements.append(Paragraph("Napi Készlet Feltöltési Lista", custom_title_style))
 
+                
+                # --- JAVÍTOTT RÉSZ: Adatbiztonsági hurok ---
                 table_data = [dataframe.columns.to_list()] 
-                table_data.extend(dataframe.values.tolist())
+                
+                # Biztosítjuk, hogy minden elem string legyen és pontosan 4 oszlopunk legyen
+                for row in dataframe.values.tolist():
+                    processed_row = [str(item) for item in row]
+                    
+                    if len(processed_row) == 4:
+                         table_data.append(processed_row)
+                    else:
+                        # Ez a print/log üzenet segít debuggolni, ha mégis kihagy egy sort
+                        print(f"Figyelem: Hibás oszlopszámot tartalmazó sor kihagyva a PDF-ből: {processed_row}")
+                        
+                # --- JAVÍTOTT RÉSZ VÉGE ---
+
 
                 col_widths = [35*mm, 115*mm, 15*mm, 15*mm]
                 
