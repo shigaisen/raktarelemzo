@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import io
-import os
-import urllib.request
 
 # --- PDF generáláshoz szükséges importok ---
 from reportlab.lib import colors
@@ -22,30 +20,21 @@ Töltsd fel az Excel fájlt, és a rendszer kiszámolja a 'tölteni' szükséges
 Letöltheted Excelben vagy PDF-ben (nyomtatáshoz).
 """)
 
-# --- FÜGGVÉNY: Betűtípus kezelése (Magyar karakterekhez - JAVÍTVA) ---
+# --- FÜGGVÉNY: Betűtípus kezelése (Magyar karakterekhez) ---
 def setup_fonts():
     font_filename = "DejaVuSans.ttf"
-    # URL a stabil verzióhoz
-    url = "https://raw.githubusercontent.com/reportlab/reportlab/master/src/reportlab/fonts/DejaVuSans.ttf"
     
-    # Ha nincs meg a fájl, letöltjük
-    if not os.path.exists(font_filename):
-        try:
-            with st.spinner('Betűtípus letöltése a PDF-hez...'):
-                urllib.request.urlretrieve(url, font_filename)
-        except Exception as e:
-            st.error(f"Nem sikerült letölteni a betűtípust: {e}")
-            return False
-            
-    # Regisztráljuk a betűtípust
+    # Ha manuálisan feltöltötted a fájlt, nem kell ellenőrizni/letölteni, 
+    # csak regisztrálni kell a Streamlit környezetben!
+    
     try:
-        # Ellenőrizzük, hogy már regisztrálva van-e, hogy ne dobjon hibát újrafutáskor
+        # Regisztráljuk a betűtípust
         if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont('DejaVuSans', font_filename))
         return True
     except Exception as e:
-        st.warning(f"Hiba a betűtípus regisztrálásánál (lehet, hogy már be van töltve): {e}")
-        # Ha hiba van, megpróbáljuk alapértelmezettként kezelni, de visszatérünk False-al
+        # Ha a fájl (DejaVuSans.ttf) nem található a könyvtárban
+        st.error(f"❌ HIBA: Nem találom a DejaVuSans.ttf fájlt! Hiba: {e}")
         return False
 
 # --- 1. Fájl feltöltése ---
@@ -90,12 +79,15 @@ if uploaded_file is not None:
         df['Raktár készlet'] = pd.to_numeric(df['Raktár készlet'], errors='coerce').fillna(0)
         df['tölteni'] = df['Maximum készlet'] - df['Raktár készlet']
 
+        # Konszolidáció
         df_konszolidalt = df.groupby(['Raktár szám', 'Terméknév'], as_index=False)['tölteni'].sum()
-        df_konszolidalt = df_konszolidalt.rename(columns={'tölteni': 'Összes Tölteni'})
+        # VÁLTOZTATÁS: Átnevezzük 'Tölteni'-re
+        df_konszolidalt = df_konszolidalt.rename(columns={'tölteni': 'Tölteni'})
         
         df_vegeredmeny = df_konszolidalt.sort_values(by='Terméknév', ascending=True)
         
-        final_oszlopok = ['Raktár szám', 'Terméknév', 'Összes Tölteni']
+        # VÁLTOZTATÁS: Átnevezzük 'Tölteni'-re
+        final_oszlopok = ['Raktár szám', 'Terméknév', 'Tölteni']
         df_final = df_vegeredmeny[final_oszlopok].copy()
         df_final['Kiírni'] = "" 
 
@@ -117,10 +109,10 @@ if uploaded_file is not None:
                 border_format = workbook.add_format({'border': 1, 'valign': 'vcenter'})
                 number_format = workbook.add_format({'border': 1, 'valign': 'vcenter', 'align': 'center', 'num_format': '0'})
 
-                # Excel oszlopszélességek
+                # VÁLTOZTATÁS: Excel oszlopszélességek (B:B szélesebb, C:C szűkebb)
                 worksheet.set_column('A:A', 15)
-                worksheet.set_column('B:B', 50)
-                worksheet.set_column('C:C', 15)
+                worksheet.set_column('B:B', 57) # Növelt szélesség
+                worksheet.set_column('C:C', 8)  # Felezett szélesség
                 worksheet.set_column('D:D', 15)
 
                 for col_num, value in enumerate(df_final.columns.values):
@@ -141,10 +133,9 @@ if uploaded_file is not None:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-        # --- GOMB 2: PDF (JAVÍTOTT SZÉLESSÉGEK) ---
+        # --- GOMB 2: PDF ---
         with col2:
             def create_pdf(dataframe):
-                # 1. Betűtípus betöltése
                 font_ok = setup_fonts()
                 used_font = 'DejaVuSans' if font_ok else 'Helvetica'
                 
@@ -153,8 +144,6 @@ if uploaded_file is not None:
                 elements = []
 
                 styles = getSampleStyleSheet()
-                
-                # Cím stílus
                 custom_title_style = ParagraphStyle(
                     'CustomTitle',
                     parent=styles['Title'],
@@ -167,10 +156,8 @@ if uploaded_file is not None:
                 table_data = [dataframe.columns.to_list()] 
                 table_data.extend(dataframe.values.tolist())
 
-                # --- ITT VAN A MÉRET VÁLTOZTATÁS ---
-                # Eredeti: [35*mm, 85*mm, 30*mm, 30*mm]
-                # Új: Terméknév +15mm, Kiírni -15mm
-                col_widths = [35*mm, 100*mm, 30*mm, 15*mm]
+                # VÁLTOZTATÁS: PDF oszlopszélességek (Terméknév 115mm, Tölteni 15mm)
+                col_widths = [35*mm, 115*mm, 15*mm, 15*mm]
                 
                 t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
@@ -179,13 +166,12 @@ if uploaded_file is not None:
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('ALIGN', (2, 0), (2, -1), 'CENTER'),
-                    ('FONTSIZE', (0, 0), (-1, 0), 10), # Fejléc méret
-                    ('FONTSIZE', (0, 1), (-1, -1), 9),  # Adat méret (kicsit kisebb, hogy kiférjen)
+                    ('FONTSIZE', (0, 0), (-1, 0), 10), 
+                    ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
                     ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    # Fontos: A cellák betűtípusa
                     ('FONTNAME', (0, 0), (-1, -1), used_font)
                 ]
                 
