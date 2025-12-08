@@ -1,8 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io
-import os
-# import urllib.request  <- EZT ELTÁVOLÍTOTTUK, MERT MÁR KÉZI FÁJLT VÁRUNK
+import os # ÚJ: Az elérési út kezeléséhez
+# import urllib.request  <- Ez már kikerült
 
 # --- PDF generáláshoz szükséges importok ---
 from reportlab.lib import colors
@@ -22,12 +22,13 @@ Töltsd fel az Excel fájlt, és a rendszer kiszámolja a 'tölteni' szükséges
 Letöltheted Excelben vagy PDF-ben (nyomtatáshoz).
 """)
 
-# --- FÜGGVÉNY: Betűtípus kezelése (Csak regisztráció, letöltés nélkül) ---
+# --- FÜGGVÉNY: Betűtípus kezelése (Elérési út JAVÍTVA) ---
 def setup_fonts():
-    font_filename = "DejaVuSans.ttf"
+    # Meghatározza az elérési utat: app.py mappa + fájlnév
+    font_filename = os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf")
     
     if not os.path.exists(font_filename):
-        st.error(f"❌ HIBA: Nem találom a {font_filename} fájlt! Kérlek, töltsd fel kézzel a GitHub repód főkönyvtárába.")
+        st.error(f"❌ HIBA: Nem találom a {font_filename} fájlt! Kérlek, ellenőrizd, hogy az 'app.py'-val egy mappában van-e!")
         return False
             
     try:
@@ -89,7 +90,6 @@ if uploaded_file is not None:
         df_final = df_vegeredmeny[final_oszlopok].copy()
         df_final['Kiírni'] = "" 
         
-        # JAVÍTÁS: NaN értékek kitöltése üres stringgel a PDF hiba elkerülése végett
         df_final = df_final.fillna('')
 
         st.success(f"✅ Siker! {len(df_final)} tétel feldolgozva.")
