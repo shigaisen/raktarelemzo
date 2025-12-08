@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import io
+import os
+import urllib.request
 
 # --- PDF generáláshoz szükséges importok ---
 from reportlab.lib import colors
@@ -23,18 +25,22 @@ Letöltheted Excelben vagy PDF-ben (nyomtatáshoz).
 # --- FÜGGVÉNY: Betűtípus kezelése (Magyar karakterekhez) ---
 def setup_fonts():
     font_filename = "DejaVuSans.ttf"
+    url = "https://raw.githubusercontent.com/reportlab/reportlab/master/src/reportlab/fonts/DejaVuSans.ttf"
     
-    # Ha manuálisan feltöltötted a fájlt, nem kell ellenőrizni/letölteni, 
-    # csak regisztrálni kell a Streamlit környezetben!
-    
+    if not os.path.exists(font_filename):
+        try:
+            with st.spinner('Betűtípus letöltése a PDF-hez...'):
+                urllib.request.urlretrieve(url, font_filename)
+        except Exception as e:
+            st.error(f"Nem sikerült letölteni a betűtípust: {e}")
+            return False
+            
     try:
-        # Regisztráljuk a betűtípust
         if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont('DejaVuSans', font_filename))
         return True
     except Exception as e:
-        # Ha a fájl (DejaVuSans.ttf) nem található a könyvtárban
-        st.error(f"❌ HIBA: Nem találom a DejaVuSans.ttf fájlt! Hiba: {e}")
+        st.warning(f"Hiba a betűtípus regisztrálásánál (lehet, hogy már be van töltve): {e}")
         return False
 
 # --- 1. Fájl feltöltése ---
@@ -79,14 +85,11 @@ if uploaded_file is not None:
         df['Raktár készlet'] = pd.to_numeric(df['Raktár készlet'], errors='coerce').fillna(0)
         df['tölteni'] = df['Maximum készlet'] - df['Raktár készlet']
 
-        # Konszolidáció
         df_konszolidalt = df.groupby(['Raktár szám', 'Terméknév'], as_index=False)['tölteni'].sum()
-        # VÁLTOZTATÁS: Átnevezzük 'Tölteni'-re
         df_konszolidalt = df_konszolidalt.rename(columns={'tölteni': 'Tölteni'})
         
         df_vegeredmeny = df_konszolidalt.sort_values(by='Terméknév', ascending=True)
         
-        # VÁLTOZTATÁS: Átnevezzük 'Tölteni'-re
         final_oszlopok = ['Raktár szám', 'Terméknév', 'Tölteni']
         df_final = df_vegeredmeny[final_oszlopok].copy()
         df_final['Kiírni'] = "" 
@@ -109,10 +112,9 @@ if uploaded_file is not None:
                 border_format = workbook.add_format({'border': 1, 'valign': 'vcenter'})
                 number_format = workbook.add_format({'border': 1, 'valign': 'vcenter', 'align': 'center', 'num_format': '0'})
 
-                # VÁLTOZTATÁS: Excel oszlopszélességek (B:B szélesebb, C:C szűkebb)
                 worksheet.set_column('A:A', 15)
-                worksheet.set_column('B:B', 57) # Növelt szélesség
-                worksheet.set_column('C:C', 8)  # Felezett szélesség
+                worksheet.set_column('B:B', 57)
+                worksheet.set_column('C:C', 8)
                 worksheet.set_column('D:D', 15)
 
                 for col_num, value in enumerate(df_final.columns.values):
@@ -156,23 +158,28 @@ if uploaded_file is not None:
                 table_data = [dataframe.columns.to_list()] 
                 table_data.extend(dataframe.values.tolist())
 
-                # VÁLTOZTATÁS: PDF oszlopszélességek (Terméknév 115mm, Tölteni 15mm)
                 col_widths = [35*mm, 115*mm, 15*mm, 15*mm]
                 
                 t = Table(table_data, colWidths=col_widths, repeatRows=1)
+                
+                # --- ÚJ: Nagyon halvány szürke szín ---
+                light_gray = colors.HexColor('#F0F0F0')
 
                 table_style_list = [
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.31, 0.50, 0.74)),
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.31, 0.50, 0.74)), # Fejléc háttér
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('ALIGN', (2, 0), (2, -1), 'CENTER'),
                     ('FONTSIZE', (0, 0), (-1, 0), 10), 
                     ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ('FONTNAME', (0, 0), (-1, -1), used_font)
+                    ('FONTNAME', (0, 0), (-1, -1), used_font),
+                    
+                    # <<< VÁLTOZTATÁS: Zebra csíkozás hozzáadása >>>
+                    # A páratlan sorok (1, 3, 5...) kapják a light_gray háttérszínt
+                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), colors.white, light_gray),
                 ]
                 
                 t.setStyle(TableStyle(table_style_list))
