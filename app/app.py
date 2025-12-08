@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import io
-import os
-# import urllib.request  <- Ez már kikerült
 
 # --- PDF generáláshoz szükséges importok ---
 from reportlab.lib import colors
@@ -22,20 +20,21 @@ Töltsd fel az Excel fájlt, és a rendszer kiszámolja a 'tölteni' szükséges
 Letöltheted Excelben vagy PDF-ben (nyomtatáshoz).
 """)
 
-# --- FÜGGVÉNY: Betűtípus kezelése (Csak regisztráció) ---
+# --- FÜGGVÉNY: Betűtípus kezelése (Magyar karakterekhez) ---
 def setup_fonts():
-    font_filename = os.path.join(os.path.dirname(__file__), "DejaVuSans.ttf")
+    font_filename = "DejaVuSans.ttf"
     
-    if not os.path.exists(font_filename):
-        st.error(f"❌ HIBA: Nem találom a {font_filename} fájlt! Kérlek, ellenőrizd, hogy az 'app.py'-val egy mappában van-e!")
-        return False
-            
+    # Ha manuálisan feltöltötted a fájlt, nem kell ellenőrizni/letölteni, 
+    # csak regisztrálni kell a Streamlit környezetben!
+    
     try:
+        # Regisztráljuk a betűtípust
         if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont('DejaVuSans', font_filename))
         return True
     except Exception as e:
-        st.error(f"❌ Hiba a betűtípus regisztrálásánál: {e}")
+        # Ha a fájl (DejaVuSans.ttf) nem található a könyvtárban
+        st.error(f"❌ HIBA: Nem találom a DejaVuSans.ttf fájlt! Hiba: {e}")
         return False
 
 # --- 1. Fájl feltöltése ---
@@ -80,17 +79,17 @@ if uploaded_file is not None:
         df['Raktár készlet'] = pd.to_numeric(df['Raktár készlet'], errors='coerce').fillna(0)
         df['tölteni'] = df['Maximum készlet'] - df['Raktár készlet']
 
+        # Konszolidáció
         df_konszolidalt = df.groupby(['Raktár szám', 'Terméknév'], as_index=False)['tölteni'].sum()
+        # VÁLTOZTATÁS: Átnevezzük 'Tölteni'-re
         df_konszolidalt = df_konszolidalt.rename(columns={'tölteni': 'Tölteni'})
         
         df_vegeredmeny = df_konszolidalt.sort_values(by='Terméknév', ascending=True)
         
+        # VÁLTOZTATÁS: Átnevezzük 'Tölteni'-re
         final_oszlopok = ['Raktár szám', 'Terméknév', 'Tölteni']
         df_final = df_vegeredmeny[final_oszlopok].copy()
         df_final['Kiírni'] = "" 
-        
-        # NaN értékek kitöltése üres stringgel a PDF hiba elkerülése végett
-        df_final = df_final.fillna('')
 
         st.success(f"✅ Siker! {len(df_final)} tétel feldolgozva.")
         st.dataframe(df_final.head(10)) 
@@ -110,9 +109,10 @@ if uploaded_file is not None:
                 border_format = workbook.add_format({'border': 1, 'valign': 'vcenter'})
                 number_format = workbook.add_format({'border': 1, 'valign': 'vcenter', 'align': 'center', 'num_format': '0'})
 
+                # VÁLTOZTATÁS: Excel oszlopszélességek (B:B szélesebb, C:C szűkebb)
                 worksheet.set_column('A:A', 15)
-                worksheet.set_column('B:B', 57)
-                worksheet.set_column('C:C', 8)
+                worksheet.set_column('B:B', 57) # Növelt szélesség
+                worksheet.set_column('C:C', 8)  # Felezett szélesség
                 worksheet.set_column('D:D', 15)
 
                 for col_num, value in enumerate(df_final.columns.values):
@@ -153,28 +153,13 @@ if uploaded_file is not None:
                 )
                 elements.append(Paragraph("Napi Készlet Feltöltési Lista", custom_title_style))
 
-                
-                # --- JAVÍTOTT RÉSZ: Adatbiztonsági hurok ---
                 table_data = [dataframe.columns.to_list()] 
-                
-                # Biztosítjuk, hogy minden elem string legyen és pontosan 4 oszlopunk legyen
-                for row in dataframe.values.tolist():
-                    processed_row = [str(item) for item in row]
-                    
-                    if len(processed_row) == 4:
-                         table_data.append(processed_row)
-                    else:
-                        # Ez a print/log üzenet segít debuggolni, ha mégis kihagy egy sort
-                        print(f"Figyelem: Hibás oszlopszámot tartalmazó sor kihagyva a PDF-ből: {processed_row}")
-                        
-                # --- JAVÍTOTT RÉSZ VÉGE ---
+                table_data.extend(dataframe.values.tolist())
 
-
+                # VÁLTOZTATÁS: PDF oszlopszélességek (Terméknév 115mm, Tölteni 15mm)
                 col_widths = [35*mm, 115*mm, 15*mm, 15*mm]
                 
                 t = Table(table_data, colWidths=col_widths, repeatRows=1)
-                
-                light_gray = colors.HexColor('#F0F0F0')
 
                 table_style_list = [
                     ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.31, 0.50, 0.74)),
@@ -184,10 +169,10 @@ if uploaded_file is not None:
                     ('FONTSIZE', (0, 0), (-1, 0), 10), 
                     ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ('FONTNAME', (0, 0), (-1, -1), used_font),
-                    ('ROWBACKGROUNDS', (0, 1), (-1, -1), colors.white, light_gray),
+                    ('FONTNAME', (0, 0), (-1, -1), used_font)
                 ]
                 
                 t.setStyle(TableStyle(table_style_list))
