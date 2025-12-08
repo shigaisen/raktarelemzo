@@ -22,12 +22,7 @@ A végeredményt letöltheted **Excelben** (formázva) vagy **PDF-ben** (nyomtat
 """)
 
 # --- FÜGGVÉNY: Betűtípus kezelése (Magyar karakterekhez) ---
-# Fontos: A 'DejaVuSans.ttf' fájlnak a Streamlit alkalmazás könyvtárában kell lennie, 
-# hogy ez a rész megfelelően működjön a PDF generáláshoz!
 def setup_fonts():
-    # A Streamlit környezetben a fájlnév elérése. 
-    # Mivel a Streamlit Cloud-ban nehézkes a fontfájl automatikus letöltése/elérése, 
-    # feltételezzük, hogy a felhasználó feltöltötte/elérhetővé tette a 'DejaVuSans.ttf' fájlt.
     font_filename = "DejaVuSans.ttf"
     
     try:
@@ -54,7 +49,6 @@ if uploaded_file is not None:
         df_elonezet = pd.read_excel(uploaded_file, header=None, nrows=15)
         
         for i, sor in df_elonezet.iterrows():
-            # Csak azokat az értékeket nézzük, amelyek nem NaN (üres cella)
             sor_ertekei = [str(x) for x in sor.dropna().tolist()]
             oszlop_talalt = True
             for oszlop in ['Raktár szám', 'Terméknév']:
@@ -84,7 +78,7 @@ if uploaded_file is not None:
         df['Raktár készlet'] = pd.to_numeric(df['Raktár készlet'], errors='coerce').fillna(0)
         df['tölteni'] = df['Maximum készlet'] - df['Raktár készlet']
         
-        # Negatív 'tölteni' értékeket nullázzuk (nem tölthetünk negatív mennyiséget)
+        # Negatív 'tölteni' értékeket nullázzuk 
         df['tölteni'] = df['tölteni'].apply(lambda x: max(0, x))
 
         # Konszolidáció (Összesítés)
@@ -107,7 +101,7 @@ if uploaded_file is not None:
         col1, col2 = st.columns(2)
 
         # ----------------------------------------------------------------------
-        # --- GOMB 1: EXCEL (Zebracsíkos formázással) ---
+        # --- GOMB 1: EXCEL (Zebracsíkos formázással - Erősebb szürke) ---
         # ----------------------------------------------------------------------
         with col1:
             buffer_excel = io.BytesIO()
@@ -120,11 +114,12 @@ if uploaded_file is not None:
                 # Formátumok definíciója
                 header_format = workbook.add_format({'bold': True, 'text_wrap': True, 'valign': 'vcenter', 'align': 'center', 'fg_color': '#4F81BD', 'font_color': 'white', 'border': 1})
                 
-                # Zebracsíkos háttérformátumok (Világosszürke: #F2F2F2)
-                striped_format_even = workbook.add_format({'border': 1, 'valign': 'vcenter', 'bg_color': '#F2F2F2'})
-                striped_format_odd = workbook.add_format({'border': 1, 'valign': 'vcenter', 'bg_color': '#FFFFFF'})
-                striped_number_format_even = workbook.add_format({'border': 1, 'valign': 'vcenter', 'align': 'center', 'num_format': '0', 'bg_color': '#F2F2F2'})
+                # === MÓDOSÍTOTT ZEBRACSÍKOS HÁTTÉRFORMÁTUMOK (Erősebb szürke: #E0E0E0) ===
+                striped_format_even = workbook.add_format({'border': 1, 'valign': 'vcenter', 'bg_color': '#E0E0E0'}) 
+                striped_format_odd = workbook.add_format({'border': 1, 'valign': 'vcenter', 'bg_color': '#FFFFFF'}) 
+                striped_number_format_even = workbook.add_format({'border': 1, 'valign': 'vcenter', 'align': 'center', 'num_format': '0', 'bg_color': '#E0E0E0'})
                 striped_number_format_odd = workbook.add_format({'border': 1, 'valign': 'vcenter', 'align': 'center', 'num_format': '0', 'bg_color': '#FFFFFF'})
+                # =======================================================================
 
                 # Oszlopszélességek beállítása
                 worksheet.set_column('A:A', 15)
@@ -140,7 +135,6 @@ if uploaded_file is not None:
                 for row_num, row_data in enumerate(df_final.values):
                     excel_row = row_num + 1
                     
-                    # Formátum kiválasztása a sor indexe alapján (páros/páratlan)
                     if excel_row % 2 == 0:
                         bg_format = striped_format_even
                         num_bg_format = striped_number_format_even
@@ -148,7 +142,6 @@ if uploaded_file is not None:
                         bg_format = striped_format_odd
                         num_bg_format = striped_number_format_odd
 
-                    # Cellaadatok kiírása az új formátumokkal
                     worksheet.write(excel_row, 0, row_data[0], bg_format)
                     worksheet.write(excel_row, 1, row_data[1], bg_format)
                     worksheet.write(excel_row, 2, row_data[2], num_bg_format)
@@ -163,7 +156,7 @@ if uploaded_file is not None:
             )
 
         # ----------------------------------------------------------------------
-        # --- GOMB 2: PDF (Zebracsíkos formázással) ---
+        # --- GOMB 2: PDF (Zebracsíkos formázással - Erősebb szürke) ---
         # ----------------------------------------------------------------------
         with col2:
             def create_pdf(dataframe):
@@ -190,15 +183,14 @@ if uploaded_file is not None:
                 table_data = [dataframe.columns.to_list()] 
                 table_data.extend(dataframe.values.tolist())
 
-                # PDF oszlopszélességek (A4: kb. 180mm használható)
-                # 35 + 115 + 15 + 15 = 180 mm
                 col_widths = [35*mm, 115*mm, 15*mm, 15*mm]
                 
                 t = Table(table_data, colWidths=col_widths, repeatRows=1)
 
-                # Zebracsíkos színek a PDF-hez
+                # === MÓDOSÍTOTT Zebracsíkos színek a PDF-hez (Sötétebb szürke) ===
                 background_color_odd = colors.white
-                background_color_even = colors.Color(red=(240/255), green=(240/255), blue=(240/255)) 
+                background_color_even = colors.Color(red=(220/255), green=(220/255), blue=(220/255)) # Erősebb szürke
+                # =======================================================================
 
                 table_style_list = [
                     # Fejléc stílusok
@@ -209,17 +201,17 @@ if uploaded_file is not None:
                     
                     # Sorok stílusai
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('ALIGN', (2, 0), (2, -1), 'CENTER'), # Tölteni oszlop középen
+                    ('ALIGN', (2, 0), (2, -1), 'CENTER'),
                     ('FONTSIZE', (0, 1), (-1, -1), 9),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     
-                    # Zebracsíkos háttér (a 1. sortól, azaz a 2. elemtől indul)
+                    # Zebracsíkos háttér 
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), [background_color_odd, background_color_even]),
                     
                     # Körvonalak
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     
-                    # Betűtípus (a magyar ékezetek miatt fontos)
+                    # Betűtípus
                     ('FONTNAME', (0, 0), (-1, -1), used_font)
                 ]
                 
