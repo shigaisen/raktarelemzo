@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import io
 import os
-import urllib.request
+# import urllib.request  <- EZT ELTÁVOLÍTOTTUK, MERT MÁR KÉZI FÁJLT VÁRUNK
 
 # --- PDF generáláshoz szükséges importok ---
 from reportlab.lib import colors
@@ -22,25 +22,20 @@ Töltsd fel az Excel fájlt, és a rendszer kiszámolja a 'tölteni' szükséges
 Letöltheted Excelben vagy PDF-ben (nyomtatáshoz).
 """)
 
-# --- FÜGGVÉNY: Betűtípus kezelése (Magyar karakterekhez) ---
+# --- FÜGGVÉNY: Betűtípus kezelése (Csak regisztráció, letöltés nélkül) ---
 def setup_fonts():
     font_filename = "DejaVuSans.ttf"
-    url = "https://raw.githubusercontent.com/reportlab/reportlab/master/src/reportlab/fonts/DejaVuSans.ttf"
     
     if not os.path.exists(font_filename):
-        try:
-            with st.spinner('Betűtípus letöltése a PDF-hez...'):
-                urllib.request.urlretrieve(url, font_filename)
-        except Exception as e:
-            st.error(f"Nem sikerült letölteni a betűtípust: {e}")
-            return False
+        st.error(f"❌ HIBA: Nem találom a {font_filename} fájlt! Kérlek, töltsd fel kézzel a GitHub repód főkönyvtárába.")
+        return False
             
     try:
         if 'DejaVuSans' not in pdfmetrics.getRegisteredFontNames():
             pdfmetrics.registerFont(TTFont('DejaVuSans', font_filename))
         return True
     except Exception as e:
-        st.warning(f"Hiba a betűtípus regisztrálásánál (lehet, hogy már be van töltve): {e}")
+        st.error(f"❌ Hiba a betűtípus regisztrálásánál: {e}")
         return False
 
 # --- 1. Fájl feltöltése ---
@@ -93,6 +88,9 @@ if uploaded_file is not None:
         final_oszlopok = ['Raktár szám', 'Terméknév', 'Tölteni']
         df_final = df_vegeredmeny[final_oszlopok].copy()
         df_final['Kiírni'] = "" 
+        
+        # JAVÍTÁS: NaN értékek kitöltése üres stringgel a PDF hiba elkerülése végett
+        df_final = df_final.fillna('')
 
         st.success(f"✅ Siker! {len(df_final)} tétel feldolgozva.")
         st.dataframe(df_final.head(10)) 
@@ -162,11 +160,10 @@ if uploaded_file is not None:
                 
                 t = Table(table_data, colWidths=col_widths, repeatRows=1)
                 
-                # --- ÚJ: Nagyon halvány szürke szín ---
                 light_gray = colors.HexColor('#F0F0F0')
 
                 table_style_list = [
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.31, 0.50, 0.74)), # Fejléc háttér
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.31, 0.50, 0.74)),
                     ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                     ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('ALIGN', (2, 0), (2, -1), 'CENTER'),
@@ -176,9 +173,6 @@ if uploaded_file is not None:
                     ('GRID', (0, 0), (-1, -1), 1, colors.black),
                     ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
                     ('FONTNAME', (0, 0), (-1, -1), used_font),
-                    
-                    # <<< VÁLTOZTATÁS: Zebra csíkozás hozzáadása >>>
-                    # A páratlan sorok (1, 3, 5...) kapják a light_gray háttérszínt
                     ('ROWBACKGROUNDS', (0, 1), (-1, -1), colors.white, light_gray),
                 ]
                 
