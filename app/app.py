@@ -11,7 +11,7 @@ Töltsd fel az Excel fájlt (.xlsx vagy .xls), és a rendszer kiszámolja a 'tö
 majd konszolidálja az adatokat.
 """)
 
-# --- 1. Fájl feltöltése (Ez helyettesíti a glob keresést) ---
+# --- 1. Fájl feltöltése ---
 uploaded_file = st.file_uploader("Húzd ide vagy válaszd ki az Excel fájlt", type=['xlsx', 'xls'])
 
 if uploaded_file is not None:
@@ -22,7 +22,6 @@ if uploaded_file is not None:
     fejlec_sor = None
     
     try:
-        # Mivel ez egy stream (memóriában lévő fájl), az olvasás után vissza kell tekerni az elejére
         # 1. lépés: Fejléc keresése az első 15 sorban
         uploaded_file.seek(0) 
         df_elonezet = pd.read_excel(uploaded_file, header=None, nrows=15)
@@ -41,13 +40,11 @@ if uploaded_file is not None:
         
         if fejlec_sor is None:
             st.error("❌ HIBA: Nem sikerült megtalálni a kötelező oszlopokat az első 15 sorban.")
-            st.stop() # Megállítjuk a futást
+            st.stop()
 
         # 2. lépés: A teljes fájl beolvasása a megtalált fejléccel
-        uploaded_file.seek(0) # FONTOS: Visszatekerjük a fájlt az elejére
+        uploaded_file.seek(0)
         df = pd.read_excel(uploaded_file, header=fejlec_sor)
-        
-        # --- Eredeti logika folytatása ---
         
         # Oszlop ellenőrzés
         hianyzo_oszlopok = [col for col in szukseges_oszlopok if col not in df.columns]
@@ -67,32 +64,82 @@ if uploaded_file is not None:
         # Rendezés
         df_vegeredmeny = df_konszolidalt.sort_values(by='Terméknév', ascending=True)
         
-        # Szűrés
+        # Szűrés és ÚJ Oszlop hozzáadása
         final_oszlopok = ['Raktár szám', 'Terméknév', 'Összes Tölteni']
-        df_final = df_vegeredmeny[final_oszlopok]
+        df_final = df_vegeredmeny[final_oszlopok].copy()
+        
+        # Itt adjuk hozzá az üres oszlopot
+        df_final['Kiírni'] = "" 
 
         # --- Eredmény megjelenítése ---
         st.success(f"✅ Siker! {len(df_final)} tétel feldolgozva.")
-        
-        # Előnézet a képernyőn
-        st.dataframe(df_final.head(10)) # Csak az első 10 sort mutatjuk előnézetnek
+        st.dataframe(df_final.head(10)) 
 
-        # --- Letöltés gomb készítése ---
-        # Excel fájl létrehozása a memóriában (nem a lemezen)
+        # --- Letöltés gomb és Excel FORMÁZÁS ---
         buffer = io.BytesIO()
+        
         with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df_final.to_excel(writer, index=False)
+            sheet_name = 'Készlet'
+            df_final.to_excel(writer, index=False, sheet_name=sheet_name)
             
-            # Formázás (opcionális, de szép)
             workbook  = writer.book
-            worksheet = writer.sheets['Sheet1']
-            format1 = workbook.add_format({'num_format': '0'})
-            worksheet.set_column('C:C', None, format1)
+            worksheet = writer.sheets[sheet_name]
+
+            # --- Formátumok ---
+            header_format = workbook.add_format({
+                'bold': True,
+                'text_wrap': True,
+                'valign': 'vcenter',
+                'align': 'center',
+                'fg_color': '#4F81BD',
+                'font_color': 'white',
+                'border': 1
+            })
+
+            border_format = workbook.add_format({
+                'border': 1,
+                'valign': 'vcenter'
+            })
+            
+            number_format = workbook.add_format({
+                'border': 1,
+                'valign': 'vcenter',
+                'align': 'center',
+                'num_format': '0'
+            })
+
+            # --- Formázás alkalmazása ---
+
+            # Oszlop szélességek (Most már a D oszlop is kap szélességet)
+            worksheet.set_column('A:A', 15) # Raktár szám
+            worksheet.set_column('B:B', 40) # Terméknév
+            worksheet.set_column('C:C', 15) # Összes tölteni
+            worksheet.set_column('D:D', 15) # Kiírni (ÚJ)
+
+            # Fejléc formázása
+            for col_num, value in enumerate(df_final.columns.values):
+                worksheet.write(0, col_num, value, header_format)
+
+            # Adatok formázása
+            for row_num, row_data in enumerate(df_final.values):
+                excel_row = row_num + 1
+                
+                # A: Raktár szám
+                worksheet.write(excel_row, 0, row_data[0], border_format)
+                
+                # B: Terméknév
+                worksheet.write(excel_row, 1, row_data[1], border_format)
+                
+                # C: Összes Tölteni (Szám)
+                worksheet.write(excel_row, 2, row_data[2], number_format)
+                
+                # D: Kiírni (ÚJ - Üres, de keretezett)
+                worksheet.write(excel_row, 3, row_data[3], border_format)
 
         buffer.seek(0)
         
         st.download_button(
-            label="📥 Letöltés (napi_keszlet.xlsx)",
+            label="📥 Letöltés formázva (napi_keszlet.xlsx)",
             data=buffer,
             file_name="napi_keszlet.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
