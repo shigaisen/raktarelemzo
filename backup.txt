@@ -91,7 +91,7 @@ if uploaded_file is not None:
         df_final = df_vegeredmeny[final_oszlopok].copy()
         
         # Csak a pozitív töltendő mennyiségeket tartjuk meg
-        #df_final = df_final[df_final['Tölteni'] > 0]
+        df_final = df_final[df_final['Tölteni'] > 0]
         
         df_final['Kiírni'] = "" # Üres oszlop a nyomtatáshoz/ellenőrzéshez
 
